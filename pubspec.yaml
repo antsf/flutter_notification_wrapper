@@ -1,12 +1,14 @@
 name: flutter_notification_wrapper
-description: A powerful wrapper for Firebase Messaging + AwesomeNotifications.
-version: 0.2.0
+description: A comprehensive Flutter package that provides a unified interface for Firebase Cloud Messaging and AwesomeNotifications with advanced features like background handling, action buttons, scheduling, and more.
+version: 0.3.0
 homepage: https://github.com/antsf/flutter_notification_wrapper
 repository: https://github.com/antsf/flutter_notification_wrapper.git
+issue_tracker: https://github.com/antsf/flutter_notification_wrapper/issues
+documentation: https://github.com/antsf/flutter_notification_wrapper/wiki
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
-  flutter: ^3.19.3
+  flutter: '>=3.19.3'
 
 dependencies:
   awesome_notifications: ^0.10.1
@@ -15,11 +17,22 @@ dependencies:
   firebase_messaging: ^15.2.5
   flutter:
     sdk: flutter
+  meta: ^1.9.1
 
 dev_dependencies:
-  # firebase_messaging_devtool: ^0.2.3
-  flutter_lints: ^3.0.0
-  test: any
+  build_runner: ^2.4.0
+  flutter_lints: ^4.0.0
+  flutter_test:
+    sdk: flutter
+  mockito: ^5.4.0
+  test: ^1.24.0
 
 flutter:
   uses-material-design: true
+
+topics:
+  - notifications
+  - firebase
+  - messaging
+  - push-notifications
+  - awesome-notifications
