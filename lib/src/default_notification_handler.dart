@@ -134,6 +134,8 @@ class DefaultNotificationHandler extends NotificationWrapper {
 
     if (firebaseOptions != null) {
       // Ensure Firebase is initialized. If called multiple times, it's a no-op.
+      _logger.d('Firebase: ${firebaseOptions.appId}');
+
       if (Firebase.apps.isEmpty) {
         await Firebase.initializeApp(options: firebaseOptions);
         _logger.d('Firebase initialized with provided options.');

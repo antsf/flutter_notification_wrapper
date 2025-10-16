@@ -27,6 +27,12 @@
 /// ```
 library flutter_notification_wrapper;
 
+// External packages
+
+export 'package:firebase_analytics/firebase_analytics.dart';
+export 'package:firebase_core/firebase_core.dart';
+export 'package:firebase_messaging/firebase_messaging.dart';
+
 export '../src/background_message_handler.dart';
 export '../src/default_notification_handler.dart';
 export '../src/notification_config.dart';
