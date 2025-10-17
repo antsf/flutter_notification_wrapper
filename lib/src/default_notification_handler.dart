@@ -81,6 +81,14 @@ class DefaultNotificationHandler extends NotificationWrapper {
     return _instance!;
   }
 
+  // Add this method to reset the instance for testing
+  @visibleForTesting
+  static void resetInstance() {
+    _logger.d(
+        'Resetting DefaultNotificationHandler singleton instance for testing.');
+    _instance = null;
+  }
+
   // Static initialization method for the shared instance
   static Future<DefaultNotificationHandler> initializeSharedInstance({
     NotificationConfig? config,
