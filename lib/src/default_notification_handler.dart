@@ -1019,35 +1019,46 @@ class DefaultNotificationHandler extends NotificationWrapper {
     logger.d('Firebase background message processed by instance handler.');
   }
 
-  /// Smart default handler for background messages to avoid duplicates.
+  /// Smart default handler for background messages.
+  ///
+  /// **Important for Android 13+ (API 33+):**
+  /// This handler always uses AwesomeNotifications to display notifications
+  /// because FCM's auto-display behavior is unreliable on Android 13+ due to
+  /// the POST_NOTIFICATIONS runtime permission requirement.
+  ///
+  /// On Android 13+, if the user hasn't granted POST_NOTIFICATIONS permission,
+  /// FCM will silently fail to display notifications. By always using
+  /// AwesomeNotifications, we ensure consistent behavior across all Android versions
+  /// and proper permission handling.
   static Future<void> smartDefaultBackgroundMessageHandler(
     RemoteMessage message,
   ) async {
-    // Use instance logger or a specific static one
     final logger = const Logger(
       'DefaultNotificationHandler',
     )..d(
         '[SmartBackgroundHandler] Processing message: ${message.messageId}, Has Notification Part: ${message.notification != null}',
       );
 
-    // If message.notification is null, it's likely a data-only message,
-    // or FCM isn't auto-displaying. In this case, we show our own.
-    if (message.notification == null) {
-      logger.i(
-        '[SmartBackgroundHandler] Message is data-only or no FCM notification part. Displaying via AwesomeNotifications.',
-      );
-      await DefaultNotificationHandler.I.showNotification(message);
-    } else {
-      logger.i(
-        '[SmartBackgroundHandler] Message has "notification" part. Assuming FCM SDK handles display (Android). Skipping AwesomeNotifications display to avoid duplicates.',
-      );
-      // IMPORTANT: If you have other data processing tasks that need to happen
-      // for background messages (even those with a 'notification' part),
-      // ensure that logic is called here or within a broader data processing function.
-      // For example: await DefaultNotificationHandler.I.processBackgroundMessageData(message.data);
-    }
-    // Example: If you always need to process data regardless of display:
-    // await _processDataFromBackgroundMessage(message.data);
+    // Always display via AwesomeNotifications for consistent behavior across
+    // all Android versions, especially Android 13+ (API 33+) which requires
+    // POST_NOTIFICATIONS permission.
+    //
+    // Previous behavior that caused issues on Android 13+:
+    // - If message had a 'notification' part, we assumed FCM would display it
+    // - On Android 13+, FCM requires POST_NOTIFICATIONS permission to display
+    // - If permission wasn't granted, FCM silently failed and nothing was shown
+    //
+    // Current behavior:
+    // - Always use AwesomeNotifications which has proper permission handling
+    // - This ensures notifications are displayed or the user is properly prompted
+    logger.i(
+      '[SmartBackgroundHandler] Displaying notification via AwesomeNotifications (recommended for Android 13+ compatibility).',
+    );
+    await DefaultNotificationHandler.I.showNotification(message);
+
+    // Note: On Android < 13, this may cause duplicate notifications if FCM
+    // also displays. To prevent duplicates, send data-only messages from your
+    // server (omit the 'notification' field) and let this handler display them.
   }
 }
 
