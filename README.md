@@ -44,7 +44,7 @@ flutter pub get
 ```gradle
 android {
     compileSdkVersion 34
-    
+
     defaultConfig {
         minSdkVersion 21
         targetSdkVersion 34
@@ -52,11 +52,28 @@ android {
 }
 ```
 
-2. Add notification icons to `android/app/src/main/res/drawable/`:
+2. **Android 13+ (API 33+) Permission Requirement:**
+
+   Add the `POST_NOTIFICATIONS` permission to your `android/app/src/main/AndroidManifest.xml`:
+
+   ```xml
+   <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+       <!-- Required for Android 13+ (API 33+) to show notifications -->
+       <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+       <application ...>
+           <!-- Your application content -->
+       </application>
+   </manifest>
+   ```
+
+   > **Important:** Without this permission declared in the manifest, notifications will not appear on Android 13+ devices even if you request permission at runtime.
+
+3. Add notification icons to `android/app/src/main/res/drawable/`:
    - `notification_icon.png` (for regular notifications)
    - `ic_stat_notification.png` (for status bar)
 
-3. Add Firebase configuration file `google-services.json` to `android/app/`.
+4. Add Firebase configuration file `google-services.json` to `android/app/`.
 
 ### iOS Setup
 
@@ -175,6 +192,52 @@ await DefaultNotificationHandler.initializeSharedInstance(
   },
 );
 ```
+
+## 🏗️ Architecture: FCM vs AwesomeNotifications
+
+This package combines Firebase Cloud Messaging (FCM) and AwesomeNotifications with clear role separation:
+
+| Feature | Firebase Cloud Messaging | AwesomeNotifications |
+|---------|-------------------------|---------------------|
+| **Primary Role** | Receive messages from cloud | Display local notifications |
+| **Message Reception** | ✅ `onMessage`, `onBackgroundMessage` | ❌ |
+| **Notification Display** | Auto-displays (with limitations) | ✅ Full control |
+| **Action Buttons** | ❌ | ✅ |
+| **Scheduling** | ❌ | ✅ |
+| **Reply Input** | ❌ | ✅ |
+| **Badge Management** | ❌ | ✅ |
+
+### Avoiding Duplicate Notifications
+
+On Android < 13, FCM automatically displays notifications when the message contains a `notification` field. This can cause duplicates since this package also uses AwesomeNotifications to display.
+
+**Recommended: Use data-only messages from your server:**
+
+```json
+// ❌ Avoid: Message with notification field (may cause duplicates on Android < 13)
+{
+  "to": "device_token",
+  "notification": {
+    "title": "Hello",
+    "body": "World"
+  },
+  "data": {
+    "key": "value"
+  }
+}
+
+// ✅ Recommended: Data-only message (consistent behavior across all versions)
+{
+  "to": "device_token",
+  "data": {
+    "title": "Hello",
+    "body": "World",
+    "key": "value"
+  }
+}
+```
+
+With data-only messages, this package handles all notification display via AwesomeNotifications, providing consistent behavior across all Android versions including Android 13+.
 
 ## 🎯 Advanced Usage
 
