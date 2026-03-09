@@ -69,8 +69,8 @@ class DefaultNotificationHandler extends NotificationWrapper {
         channelName: 'Background Notifications',
         channelDescription: 'Notifications processed in the background.',
         androidNotificationIcon:
-            'resource://drawable/notification_icon', // Optional: if you have a default icon
-        defaultColor: Color(0xff00AADE), // Optional: a default color
+            'resource://drawable/ic_notification', // Matching the actual resource name
+        defaultColor: const Color(0xff002B5B), // Matching app primary color
       );
       // This new instance also needs its notification channels set up if it's going to show notifications.
       // This implies _setupNotificationChannels might need to be callable safely by such an instance.
@@ -1062,7 +1062,6 @@ class DefaultNotificationHandler extends NotificationWrapper {
   }
 }
 
-
 /**
  * You're observing that config (specifically, the _config field within your DefaultNotificationHandler instance) is null when processing a background message. This is a common issue related to how Dart isolates work and how your DefaultNotificationHandler singleton is initialized, especially when the app might be started from a terminated state by a notification.
 
@@ -1158,6 +1157,6 @@ Safeguards in showNotification and _createLocalNotificationFromMessage:
 
 Added checks for _config == null even in these methods. If, for some reason, _config is still null, it logs an error and attempts to use an "emergency" hardcoded channel key. This is a last resort and indicates a setup issue that should be fixed.
 By ensuring that any instance of DefaultNotificationHandler (even one created on-the-fly in a background isolate) has a valid _config (even if it's a fallback), you prevent the null error and allow background notifications to be processed and displayed using a predefined channel. Remember to define 'fallback_background_channel' (or your chosen key) in your AwesomeNotifications channel setup during app initialization.
- 
+
  source: Gemini
  */
