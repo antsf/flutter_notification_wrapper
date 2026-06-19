@@ -9,6 +9,25 @@ void main() {
       expect(rx.value, 0);
     });
 
+    test('listenWithPrevious reports the true previous value (T12)', () {
+      final rx = Rx<int>(0);
+      final transitions = <List<int>>[];
+
+      rx
+        ..listenWithPrevious((previous, current) {
+          transitions.add([previous, current]);
+        })
+        ..value = 1
+        ..value = 2
+        ..value = 5;
+
+      expect(transitions, [
+        [0, 1],
+        [1, 2],
+        [2, 5],
+      ]);
+    });
+
     test('should notify listeners on value change', () {
       final rx = Rx<int>(0);
       int? notifiedValue;

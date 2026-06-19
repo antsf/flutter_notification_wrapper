@@ -1,21 +1,26 @@
-// ignore_for_file: public_member_api_docs, lines_longer_than_80_chars
+// ignore_for_file: lines_longer_than_80_chars
 
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
-// It's good practice to avoid direct dependencies from abstract layers to concrete implementations
-// if DefaultNotificationHandler is the *only* implementation, this is okay,
-// but for true abstraction, DefaultNotificationHandler().showNotification would be an issue here.
-// For now, we'll keep it as it demonstrates the original intent for the default.
-// A more advanced solution might involve a separate static helper or a factory.
 import 'default_notification_handler.dart';
 import 'notification_config.dart';
-import 'utils/logger.dart'; // Assuming you have a Logger utility
+import 'utils/logger.dart';
 
+/// Abstract contract for a unified Firebase Cloud Messaging +
+/// AwesomeNotifications handler.
+///
+/// The concrete [DefaultNotificationHandler] implements every method below.
+/// Consumers normally use that implementation via
+/// [DefaultNotificationHandler.initializeSharedInstance]; this abstraction
+/// exists so the behavior can be swapped or faked in tests.
+///
+/// All message/notification lifecycle callbacks can be overridden through the
+/// constructor. Anything not overridden falls back to a logging-only default.
 abstract class NotificationWrapper {
+  /// Creates a wrapper, optionally overriding lifecycle callbacks.
   NotificationWrapper({
-    // Allow providing overrides in the constructor
     void Function(RemoteMessage)? onMessageOverride,
     void Function(RemoteMessage)? onMessageOpenedAppOverride,
     Future<void> Function(RemoteMessage)? onBackgroundMessageOverride,
@@ -24,9 +29,8 @@ abstract class NotificationWrapper {
         onNotificationDisplayedOverride,
     Future<void> Function(ReceivedAction)? onNotificationDismissedOverride,
     Future<void> Function(ReceivedAction)? handleActionReceivedOverride,
-    this.onFailedToResolveHostname,
-    this.onIosTokens,
-    this.onAndroidPermission,
+    this.onError,
+    this.onPermissionEvent,
   })  : onMessage = onMessageOverride ?? _defaultOnMessage,
         onMessageOpenedApp =
             onMessageOpenedAppOverride ?? _defaultOnMessageOpenedApp,
@@ -40,7 +44,8 @@ abstract class NotificationWrapper {
             onNotificationDismissedOverride ?? _defaultOnNotificationDismissed,
         handleActionReceived =
             handleActionReceivedOverride ?? _defaultHandleActionReceived;
-  // FCM & Awesome Notification Listeners
+
+  // FCM & AwesomeNotification lifecycle callbacks.
   final void Function(RemoteMessage) onMessage;
   final void Function(RemoteMessage) onMessageOpenedApp;
   final Future<void> Function(RemoteMessage) onBackgroundMessage;
@@ -49,61 +54,75 @@ abstract class NotificationWrapper {
   final Future<void> Function(ReceivedAction) onNotificationDismissed;
   final Future<void> Function(ReceivedAction) handleActionReceived;
 
-  // Optional handlers that might be specific to the implementation
-  final void Function(Exception exception)? onFailedToResolveHostname;
-  final void Function({required String token, required String raw})?
-      onIosTokens;
-  final void Function(ReceivedAction action)? onAndroidPermission;
+  /// Called when an internal operation throws. Receives the raw `error` and its
+  /// `stackTrace`. The error is *not* downcast, so any error type is delivered
+  /// safely (never rethrown from inside the package's catch blocks).
+  final void Function(Object error, StackTrace stackTrace)? onError;
 
+  /// Optional analytics seam. Invoked for notable events (e.g. permission
+  /// requests) so the host app can log them through its own analytics pipeline,
+  /// after obtaining user consent. The package itself logs nothing externally.
+  final void Function(String name, Map<String, Object?> parameters)?
+      onPermissionEvent;
+
+  /// Initializes channels, listeners and (optionally) Firebase.
+  ///
+  /// Set [requestPermissionsOnInit] to `true` to request OS notification
+  /// permission during initialization. It defaults to `false` so apps can show
+  /// a contextual prompt later via `requestPermissions` (the recommended UX).
   Future<void> initialize({
     NotificationConfig? config,
     FirebaseOptions? firebaseOptions,
+    bool requestPermissionsOnInit = false,
   });
 
   // ================== FCM TOKEN METHODS ===================
   Future<String?> getFcmToken();
+
+  /// Registers [onTokenRefresh] to be called whenever the FCM token changes.
+  ///
+  /// Idempotent: calling this repeatedly replaces the previous callback rather
+  /// than stacking subscriptions.
   Future<void> refreshToken(void Function(String) onTokenRefresh);
 
   // ================== NOTIFICATION PERMISSIONS ===================
   Future<AuthorizationStatus> requestPermissions();
   Future<bool> isNotificationAllowed();
 
-  // ================== NOTIFICATION ACTIONS ===================
-  void handleNotificationClick(RemoteMessage message);
-
   // ================== NOTIFICATION DISPLAY ===================
-  Future<void> showNotification(RemoteMessage message);
-  Future<void> showRegularNotification({
+  // Display methods return the generated notification id so callers can later
+  // cancel or update the notification they created.
+  Future<int> showNotification(RemoteMessage message);
+  Future<int> showRegularNotification({
     required String title,
     required String body,
     Map<String, String>? payload,
     String? channelKey,
   });
-  Future<void> showActionNotification({
+  Future<int> showActionNotification({
     required String title,
     required String body,
     List<NotificationActionButton> buttons,
     Map<String, String>? payload,
     String? channelKey,
   });
-  Future<void> showReplyNotification({
+  Future<int> showReplyNotification({
     required String title,
     required String body,
     String? replyLabel,
-    String? inputPlaceholder,
     NotificationActionButton? replyButton,
     Map<String, String>? payload,
     String? channelKey,
   });
-  Future<void> showGroupedNotification(
+  Future<List<int>> showGroupedNotification(
     String groupKey,
     List<NotificationContent> messages,
   );
-  Future<void> scheduleNotification(
-    int id,
-    String title,
-    String body,
-    DateTime scheduledDate, {
+  Future<int> scheduleNotification({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime scheduledDate,
     Map<String, String>? payload,
     String? channelKey,
   });
@@ -115,22 +134,19 @@ abstract class NotificationWrapper {
   Future<void> clearBadgeCount();
 
   // ================== SETTINGS & DEBUG ===================
-  Future<void> openAppSettings();
   Future<void> openNotificationSettings();
-  void simulateNotification({
+  Future<int> simulateNotification({
     required String title,
     required String body,
     Map<String, dynamic>? data,
     String? channelKey,
   });
+
+  /// Cancels listeners and releases resources. Call when the handler is no
+  /// longer needed (e.g. on logout or app teardown).
   void dispose();
 
-  // DevTool (Awesome Notifications) - Keep abstract if implementations might vary
-  void enableDevTool();
-  void disableDevTool();
-
   // ================== STATIC DEFAULT HANDLERS ===================
-  // These are the fallback implementations if no override is provided.
 
   static void _defaultOnMessage(RemoteMessage message) =>
       const Logger('NotificationWrapper')
@@ -143,16 +159,6 @@ abstract class NotificationWrapper {
   static Future<void> _defaultOnBackgroundMessage(RemoteMessage message) async {
     const Logger('NotificationWrapper')
         .d('[Default] Background message received: ${message.messageId}');
-    // This default implies that DefaultNotificationHandler is always available or can be instantiated.
-    // This is a simplification; a more decoupled system might use a different approach.
-    // For this to work, DefaultNotificationHandler needs a parameterless constructor
-    // or a static way to show notifications if not fully initialized.
-    // Given the singleton pattern in the refactored DefaultNotificationHandler,
-    // this specific default might need adjustment if DefaultNotificationHandler()
-    // is not suitable for a one-off call.
-    // A safer default might be to just log, or if DefaultNotificationHandler.I is guaranteed
-    // to be initialized by the time a background message comes, it could use that.
-    // However, for a truly isolated background task, direct instantiation is common.
     await DefaultNotificationHandler.I.showNotification(message);
   }
 
@@ -178,7 +184,7 @@ abstract class NotificationWrapper {
   static Future<void> _defaultHandleActionReceived(
     ReceivedAction action,
   ) async =>
-      const Logger(
-        'NotificationWrapper',
-      ).d('[Default] Action received: ${action.id}, payload: ${action.payload}');
+      const Logger('NotificationWrapper').d(
+        '[Default] Action received: ${action.id}, payload: ${action.payload}',
+      );
 }

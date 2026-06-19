@@ -1,84 +1,52 @@
-// import 'package:firebase_messaging/firebase_messaging.dart';
-// ignore_for_file: lines_longer_than_80_chars
-
 import 'package:flutter/material.dart';
 import 'package:flutter_notification_wrapper/flutter_notification_wrapper.dart';
+
 import 'screens/home_screen.dart';
 
-// void main() async {
-//   WidgetsFlutterBinding.ensureInitialized();
-//   FirebaseMessaging.onBackgroundMessage(backgroundMessageHandler);
+/// Demonstrates flutter_notification_wrapper end-to-end.
+///
+/// This example runs WITHOUT Firebase configured: it shows the local
+/// notification features (regular / action / reply / scheduled / grouped /
+/// badges) which work through AwesomeNotifications alone.
+///
+/// To enable Firebase Cloud Messaging:
+///  1. Add `google-services.json` (Android) / `GoogleService-Info.plist` (iOS).
+///  2. Generate `firebase_options.dart` with the FlutterFire CLI.
+///  3. Pass `firebaseOptions: DefaultFirebaseOptions.currentPlatform` below.
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
-//   final notificationHandler = DefaultNotificationHandler();
-//   await notificationHandler.initialize(
-//     config: NotificationConfig(
-//       channelKey: 'custom_channel',
-//       channelName: 'My Custom Notifications',
-//       channelDescription: 'Important alerts',
-//       defaultColor: Colors.green,
-//       androidNotificationIcon:
-//           'resource://drawable/notification_icon', // Must exist in /android/app/src/main/res/
-//     ),
-//     // firebaseOptions: DefaultFirebaseOptions.currentPlatform,
-//   );
+  const config = NotificationConfig(
+    channelKey: 'app_channel_01',
+    channelName: 'App General Notifications',
+    channelDescription: 'Main notification channel for the example app.',
+    defaultColor: Colors.teal,
+    // androidNotificationIcon: 'resource://drawable/ic_stat_notification',
+  );
 
-//   runApp(const MyApp());
-// }
+  await DefaultNotificationHandler.initializeSharedInstance(
+    config: config,
+    // firebaseOptions: DefaultFirebaseOptions.currentPlatform,
+    onError: (error, stackTrace) =>
+        debugPrint('Notification error: $error\n$stackTrace'),
+    onPermissionEvent: (name, params) =>
+        debugPrint('Permission event: $name $params'),
+    handleActionReceivedOverride: (action) async {
+      debugPrint('Action received: ${action.buttonKeyPressed} '
+          'input="${action.buttonKeyInput}" payload=${action.payload}');
+    },
+  );
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  runApp(const ExampleApp());
+}
+
+class ExampleApp extends StatelessWidget {
+  const ExampleApp({super.key});
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-        title: 'Notification Wrapper',
-        theme: ThemeData(primarySwatch: Colors.blue),
-        home: HomeScreen(),
+        title: 'Notification Wrapper Example',
+        theme: ThemeData(colorSchemeSeed: Colors.teal, useMaterial3: true),
+        home: const HomeScreen(),
       );
-}
-
-// // main.dart (or your app's entry point)
-// import 'package:your_app/notifications/default_notification_handler.dart';
-// import 'package:your_app/notifications/notification_config.dart';
-// import 'package:firebase_core/firebase_core.dart';
-// // Import your Firebase options if you have them generated (firebase_options.dart)
-// // import 'firebase_options.dart';
-
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // --- Initialize Firebase (if not using firebase_options.dart directly in handler) ---
-  // If you have a firebase_options.dart, you can pass DefaultFirebaseOptions.currentPlatform
-  // Or, initialize it here if DefaultNotificationHandler won't do it with options.
-  // await Firebase.initializeApp(
-  //   options: DefaultFirebaseOptions.currentPlatform, // If you have firebase_options.dart
-  // );
-
-  // --- Configure and Initialize Notification Handler ---
-  const notificationConfig = NotificationConfig(
-    channelKey: 'app_channel_01',
-    channelName: 'App General Notifications',
-    channelDescription: 'Main notification channel for the app.',
-    androidNotificationIcon:
-        'resource://drawable/ic_stat_notification', // Replace with your icon
-    defaultColor: Colors.teal,
-  );
-
-  // Initialize the shared instance of the notification handler
-  await DefaultNotificationHandler.initializeSharedInstance(
-    config: notificationConfig,
-    // firebaseOptions: DefaultFirebaseOptions
-    //     .currentPlatform, // If using firebase_options.dart
-    // Optionally, provide custom handlers here if you don't want the defaults
-    // from NotificationWrapper or if you want to override specific ones for this app instance:
-    // onMessageOverride: (RemoteMessage message) {
-    //   print("Custom foreground message handler: ${message.data}");
-    //   DefaultNotificationHandler.I.showNotification(message); // Example: still show it
-    // },
-    // onBackgroundMessageOverride: (RemoteMessage message) async {
-    //   print("Custom background message handler: ${message.data}");
-    //   await DefaultNotificationHandler.I.showNotification(message);
-    // }
-  );
-
-  runApp(const MyApp());
 }
