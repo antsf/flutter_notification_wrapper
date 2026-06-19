@@ -1,5 +1,9 @@
 # Review of the Review — Validating `06-brutal-review.md`
 
+> ✅ **RESOLVED in v1.0.0** (PR #5, merged 2026-06-19). Both the confirmed
+> findings and the six additional issues (➕) surfaced here were addressed in the
+> implementation — see [`08-implementation-plan.md`](08-implementation-plan.md).
+
 > Meta-review: every finding in `06-brutal-review.md` re-checked against the
 > actual source (`file:line`). Verdicts: ✅ Confirmed · 🔧 Confirmed + refined ·
 > ⚠️ Overstated · ❌ Wrong · ➕ Missing from the original review.

@@ -70,8 +70,8 @@ android {
    > **Important:** Without this permission declared in the manifest, notifications will not appear on Android 13+ devices even if you request permission at runtime.
 
 3. Add notification icons to `android/app/src/main/res/drawable/`:
-   - `notification_icon.png` (for regular notifications)
-   - `ic_stat_notification.png` (for status bar)
+   - `ic_notification.png` (the default icon used by the package)
+   - `ic_stat_notification.png` (optional, for a custom status-bar icon)
 
 4. Add Firebase configuration file `google-services.json` to `android/app/`.
 
@@ -104,7 +104,7 @@ void main() async {
     channelName: 'App Notifications',
     channelDescription: 'General notifications from the app',
     defaultColor: Colors.blue,
-    androidNotificationIcon: 'resource://drawable/notification_icon',
+    androidNotificationIcon: 'resource://drawable/ic_notification',
   );
   
   // Initialize the notification handler.
