@@ -57,16 +57,19 @@ class Rx<T> {
     return () => _listeners.remove(callback);
   }
 
-  /// Adds a listener that will be called with both old and new values.
+  /// Adds a listener that will be called with both the previous and the new
+  /// value on every change.
   ///
   /// Returns a function that can be called to remove the listener.
   VoidCallback listenWithPrevious(
     void Function(T previous, T current) callback,
   ) {
+    // Snapshot the value at registration time, then advance it on each change
+    // so the listener always receives the true previous value.
+    var previous = _value;
     void wrappedCallback(T current) {
-      // This is a simplified version - in a full implementation,
-      // you'd want to track the previous value properly
-      callback(_value, current);
+      callback(previous, current);
+      previous = current;
     }
 
     return listen(wrappedCallback);
@@ -99,10 +102,8 @@ class Rx<T> {
       try {
         listener(newValue);
       } catch (error, stackTrace) {
-        // Log error but continue notifying other listeners
-        if (kDebugMode) {
-          print('Error in Rx listener: $error\n$stackTrace');
-        }
+        // Log error but continue notifying other listeners.
+        debugPrint('Error in Rx listener: $error\n$stackTrace');
       }
     }
 

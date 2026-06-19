@@ -26,7 +26,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  flutter_notification_wrapper: ^0.3.0
+  flutter_notification_wrapper: ^1.0.0
 ```
 
 Then run:
@@ -107,15 +107,23 @@ void main() async {
     androidNotificationIcon: 'resource://drawable/notification_icon',
   );
   
-  // Initialize the notification handler
+  // Initialize the notification handler.
+  // Permissions are opt-in: pass requestPermissionsOnInit: true to prompt now,
+  // or call handler.requestPermissions() later at a contextual moment.
   await DefaultNotificationHandler.initializeSharedInstance(
     config: config,
+    requestPermissionsOnInit: false,
     // firebaseOptions: DefaultFirebaseOptions.currentPlatform, // If using Firebase
   );
   
   runApp(MyApp());
 }
 ```
+
+> **Display methods return the notification id.** `showRegularNotification`,
+> `showActionNotification`, `showReplyNotification` and `scheduleNotification`
+> return `Future<int>` (and `showGroupedNotification` returns `Future<List<int>>`)
+> so you can later `cancelNotification(id)` the notification you created.
 
 ### Showing Notifications
 
@@ -157,12 +165,12 @@ await handler.showReplyNotification(
 ### Scheduling Notifications
 
 ```dart
-// Schedule a notification for later
+// Schedule a notification for later (named parameters)
 await handler.scheduleNotification(
-  1, // notification ID
-  'Reminder',
-  'Don\'t forget your appointment!',
-  DateTime.now().add(Duration(hours: 2)),
+  id: 1,
+  title: 'Reminder',
+  body: 'Don\'t forget your appointment!',
+  scheduledDate: DateTime.now().add(Duration(hours: 2)),
 );
 
 // Cancel a scheduled notification
@@ -332,11 +340,8 @@ await handler.refreshToken((newToken) {
 ### Simulation for Development
 
 ```dart
-// Enable debug tools
-handler.enableDevTool();
-
-// Simulate notifications during development
-handler.simulateNotification(
+// Simulate a notification during development (returns its id)
+final id = await handler.simulateNotification(
   title: 'Test Notification',
   body: 'This is a simulated notification for testing',
   data: {'key': 'value'},
@@ -345,7 +350,12 @@ handler.simulateNotification(
 
 ### Logging Configuration
 
+The logging utilities live in a separate entrypoint so they don't pollute your
+namespace:
+
 ```dart
+import 'package:flutter_notification_wrapper/utils.dart';
+
 // Set log level
 Logger.setLogLevel(LogLevel.debug);
 
@@ -360,11 +370,15 @@ logger.w('This is a warning');
 logger.e('This is an error');
 ```
 
-## 🎨 Reactive Programming
+## 🎨 Reactive Programming (optional utilities)
 
-The package includes built-in reactive programming utilities:
+The package ships small reactive helpers used internally. They are **not**
+exported from the main entrypoint (to avoid clashing with packages like GetX);
+import them explicitly only if you want them:
 
 ```dart
+import 'package:flutter_notification_wrapper/utils.dart';
+
 // Simple reactive value
 final counter = Rx<int>(0);
 counter.listen((value) => print('Counter: $value'));
@@ -406,38 +420,17 @@ try {
   print('Failed to show notification: $error');
 }
 
-// Custom error handlers
+// Centralized error + analytics hooks
 await DefaultNotificationHandler.initializeSharedInstance(
   config: config,
-  onFailedToResolveHostname: (exception) {
-    print('Network error: $exception');
+  onError: (error, stackTrace) {
+    debugPrint('Notification error: $error\n$stackTrace');
   },
-);
-```
-
-## 📱 Platform-Specific Features
-
-### iOS-Specific
-
-```dart
-// Handle iOS token updates
-await DefaultNotificationHandler.initializeSharedInstance(
-  config: config,
-  onIosTokens: (token, raw) {
-    print('iOS Token: $token');
-    print('Raw Token: $raw');
-  },
-);
-```
-
-### Android-Specific
-
-```dart
-// Handle Android permission requests
-await DefaultNotificationHandler.initializeSharedInstance(
-  config: config,
-  onAndroidPermission: (action) {
-    print('Android permission action: ${action.buttonKeyPressed}');
+  // Optional analytics seam — invoked for permission events so YOU can log
+  // them through your own pipeline (after obtaining consent). The package
+  // logs nothing externally itself.
+  onPermissionEvent: (name, parameters) {
+    myAnalytics.logEvent(name, parameters);
   },
 );
 ```
@@ -461,6 +454,8 @@ await DefaultNotificationHandler.initializeSharedInstance(
 | `groupKey`                 | `String?`                 | Group key for grouping            | `null`      |
 | `groupAlertBehavior`       | `GroupAlertBehavior`      | Group alert behavior              | `Children`  |
 | `defaultPrivacy`           | `NotificationPrivacy`     | Privacy level                     | `Public`    |
+| `wakeUpScreen`             | `bool`                    | Wake/turn on screen on display    | `false`     |
+| `category`                 | `NotificationCategory?`   | Default notification category     | `null`      |
 
 ## 🤝 Contributing
 

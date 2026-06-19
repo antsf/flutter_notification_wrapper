@@ -1,15 +1,8 @@
-/// A comprehensive Flutter package that provides a unified interface for
-/// Firebase Cloud Messaging and AwesomeNotifications.
+/// A Flutter package providing a unified interface over Firebase Cloud
+/// Messaging and AwesomeNotifications: background handling, action buttons,
+/// scheduling, grouping, badges and channel configuration.
 ///
-/// This library offers:
-/// - Unified notification handling across platforms
-/// - Background message processing
-/// - Action buttons and interactive notifications
-/// - Notification scheduling and grouping
-/// - Badge count management
-/// - Customizable notification channels
-///
-/// Example usage:
+/// Example:
 /// ```dart
 /// final handler = await DefaultNotificationHandler.initializeSharedInstance(
 ///   config: NotificationConfig(
@@ -19,28 +12,40 @@
 ///   ),
 /// );
 ///
-/// // Show a notification
 /// await handler.showRegularNotification(
 ///   title: 'Hello',
 ///   body: 'This is a test notification',
 /// );
 /// ```
-library flutter_notification_wrapper;
+///
+/// The optional utilities (`Logger`, `Rx`, `Debouncer`) are intentionally NOT
+/// exported here to avoid polluting the consumer namespace. Import them
+/// explicitly if you want them:
+/// ```dart
+/// import 'package:flutter_notification_wrapper/utils.dart';
+/// ```
+library;
 
-// External packages
+// Public types required by this package's API surface.
+export 'package:awesome_notifications/awesome_notifications.dart'
+    show
+        ActionType,
+        GroupAlertBehavior,
+        NotificationActionButton,
+        NotificationCalendar,
+        NotificationCategory,
+        NotificationContent,
+        NotificationImportance,
+        NotificationLayout,
+        NotificationPrivacy,
+        ReceivedAction,
+        ReceivedNotification;
+export 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
+export 'package:firebase_messaging/firebase_messaging.dart'
+    show AuthorizationStatus, RemoteMessage;
 
-export 'package:firebase_analytics/firebase_analytics.dart';
-export 'package:firebase_core/firebase_core.dart';
-export 'package:firebase_messaging/firebase_messaging.dart';
-export 'package:awesome_notifications/awesome_notifications.dart';
-
-export '../src/background_message_handler.dart';
-export '../src/default_notification_handler.dart';
-export '../src/notification_config.dart';
-export '../src/notification_wrapper.dart';
-export '../src/utils/debounce.dart';
-export '../src/utils/logger.dart';
-export '../src/utils/notification_analytics.dart';
-export '../src/utils/notification_center.dart';
-export '../src/utils/rx.dart';
-export '../src/utils/type.dart';
+// This package's own public API.
+export 'src/background_message_handler.dart';
+export 'src/default_notification_handler.dart';
+export 'src/notification_config.dart';
+export 'src/notification_wrapper.dart';

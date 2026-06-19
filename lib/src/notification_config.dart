@@ -36,6 +36,8 @@ class NotificationConfig {
     this.groupKey,
     this.groupAlertBehavior = GroupAlertBehavior.Children,
     this.defaultPrivacy = NotificationPrivacy.Public,
+    this.wakeUpScreen = false,
+    this.category,
   });
 
   /// Creates a configuration for silent notifications.
@@ -194,6 +196,16 @@ class NotificationConfig {
   /// Privacy level for lock screen notifications
   final NotificationPrivacy defaultPrivacy;
 
+  /// Whether displaying a notification should wake up / turn on the screen.
+  ///
+  /// Defaults to `false`. Forcing the screen on for routine messages is
+  /// battery- and UX-hostile, so opt in only for time-critical channels.
+  final bool wakeUpScreen;
+
+  /// The default [NotificationCategory] applied to notifications shown through
+  /// this configuration. When `null`, AwesomeNotifications decides.
+  final NotificationCategory? category;
+
   /// Creates a copy of this config with the given fields replaced with new values.
   NotificationConfig copyWith({
     String? channelKey,
@@ -209,6 +221,8 @@ class NotificationConfig {
     String? groupKey,
     GroupAlertBehavior? groupAlertBehavior,
     NotificationPrivacy? defaultPrivacy,
+    bool? wakeUpScreen,
+    NotificationCategory? category,
   }) =>
       NotificationConfig(
         channelKey: channelKey ?? this.channelKey,
@@ -225,6 +239,8 @@ class NotificationConfig {
         groupKey: groupKey ?? this.groupKey,
         groupAlertBehavior: groupAlertBehavior ?? this.groupAlertBehavior,
         defaultPrivacy: defaultPrivacy ?? this.defaultPrivacy,
+        wakeUpScreen: wakeUpScreen ?? this.wakeUpScreen,
+        category: category ?? this.category,
       );
 
   /// Converts this config to a [NotificationChannel] for AwesomeNotifications.
@@ -237,7 +253,7 @@ class NotificationConfig {
         playSound: playSound,
         enableVibration: enableVibration,
         enableLights: enableLights,
-        defaultColor: defaultColor ?? const Color(0xff00AADE),
+        defaultColor: defaultColor ?? const Color(0xff002B5B),
         defaultPrivacy: defaultPrivacy,
         groupAlertBehavior: groupAlertBehavior,
         groupKey: groupKey ?? '${channelKey}_group',
@@ -286,7 +302,9 @@ class NotificationConfig {
       'enableLights: $enableLights, '
       'groupKey: $groupKey, '
       'groupAlertBehavior: $groupAlertBehavior, '
-      'defaultPrivacy: $defaultPrivacy'
+      'defaultPrivacy: $defaultPrivacy, '
+      'wakeUpScreen: $wakeUpScreen, '
+      'category: $category'
       '}';
 
   @override
@@ -306,7 +324,9 @@ class NotificationConfig {
           enableLights == other.enableLights &&
           groupKey == other.groupKey &&
           groupAlertBehavior == other.groupAlertBehavior &&
-          defaultPrivacy == other.defaultPrivacy;
+          defaultPrivacy == other.defaultPrivacy &&
+          wakeUpScreen == other.wakeUpScreen &&
+          category == other.category;
 
   @override
   int get hashCode => Object.hash(
@@ -323,5 +343,7 @@ class NotificationConfig {
         groupKey,
         groupAlertBehavior,
         defaultPrivacy,
+        wakeUpScreen,
+        category,
       );
 }

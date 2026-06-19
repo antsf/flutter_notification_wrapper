@@ -5,6 +5,76 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-06-19
+
+First production-ready release. This is a correctness and API-hygiene overhaul
+with several **breaking changes**.
+
+### Fixed (critical)
+- **Channels now honor `NotificationConfig`.** Channel setup previously hardcoded
+  importance/sound/badge/privacy, so `silent()`, `lowPriority()`, `enableVibration`,
+  `defaultPrivacy`, etc. were silently ignored. The main channel is now built from
+  `config.toNotificationChannel()`.
+- **Background isolate initialization.** AwesomeNotifications is now initialized
+  on demand in the terminated-state background isolate, so background/terminated
+  notifications no longer fail silently.
+- **No more crash-on-error.** Error callbacks no longer downcast caught errors
+  with `as Exception` (which could crash on `Error` subtypes).
+- Added a real MIT `LICENSE` (was a placeholder).
+- Removed an AI chat transcript and large blocks of dead code from the source.
+
+### Changed (breaking)
+- `onFailedToResolveHostname` → **`onError(Object error, StackTrace stackTrace)`**.
+- Display methods now **return the notification id**: `showRegularNotification`,
+  `showActionNotification`, `showReplyNotification`, `scheduleNotification` return
+  `Future<int>`; `showGroupedNotification` returns `Future<List<int>>`.
+- `scheduleNotification` now uses **named parameters**:
+  `scheduleNotification(id:, title:, body:, scheduledDate:, ...)`.
+- **Permissions are opt-in.** `initialize`/`initializeSharedInstance` no longer
+  request OS permission automatically; pass `requestPermissionsOnInit: true` or
+  call `requestPermissions()` contextually.
+- **Utilities are no longer exported from the main entrypoint.** Import
+  `package:flutter_notification_wrapper/utils.dart` for `Logger`, `Rx`, `Debouncer`.
+- Removed forced `firebase_analytics` dependency. Use the new optional
+  `onPermissionEvent(name, parameters)` hook to log through your own pipeline
+  (after consent).
+- Removed dead/no-op API: `enableDevTool`, `disableDevTool`, `handleNotificationClick`,
+  `openAppSettings` (use `openNotificationSettings`), `onIosTokens`,
+  `onAndroidPermission`, `NotificationCenter`, `NotificationAnalytics`, and the
+  unused `type.dart` typedefs.
+
+### Added
+- Deterministic, unique, retrievable notification ids (no more 100s-wrap
+  collisions or `messageId.hashCode == 0` overwrites).
+- `permissionStatus` getter + `permissionStatusStream`.
+- `wakeUpScreen` (default `false`) and `category` on `NotificationConfig`.
+- Idempotent re-initialization and a single, replaceable token-refresh listener;
+  all subscriptions are now cancelled in `dispose()`.
+- A runnable example app with Android/iOS platform folders.
+- GitHub Actions CI (format, analyze, test, publish dry-run).
+- Real unit tests for config→channel mapping, id generation, the singleton
+  fallback config, and `Rx.listenWithPrevious`.
+
+### Migration (0.3.0 → 1.0.0)
+```dart
+// Error callback
+- onFailedToResolveHostname: (e) { ... }
++ onError: (error, stackTrace) { ... }
+
+// Scheduling
+- scheduleNotification(1, 'Title', 'Body', when);
++ scheduleNotification(id: 1, title: 'Title', body: 'Body', scheduledDate: when);
+
+// Permissions (now opt-in)
++ await DefaultNotificationHandler.initializeSharedInstance(
++   config: config, requestPermissionsOnInit: true,
++ );
+
+// Utilities
+- import 'package:flutter_notification_wrapper/flutter_notification_wrapper.dart'; // Rx/Logger/Debouncer
++ import 'package:flutter_notification_wrapper/utils.dart';
+```
+
 ## [0.3.0] - 2024-01-XX
 
 ### Added

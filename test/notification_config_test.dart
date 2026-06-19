@@ -1,5 +1,4 @@
 // test/notification_config_test.dart
-import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_notification_wrapper/flutter_notification_wrapper.dart';
 import 'package:flutter_test/flutter_test.dart';
