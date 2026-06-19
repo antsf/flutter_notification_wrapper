@@ -1,5 +1,10 @@
 # Brutal Package Review — `flutter_notification_wrapper`
 
+> ✅ **RESOLVED in v1.0.0** (PR #5, merged 2026-06-19). This document is the
+> historical review of `0.3.0`. Every Critical and Major issue below was fixed —
+> see [`08-implementation-plan.md`](08-implementation-plan.md) for the task
+> mapping and the `1.0.0` entry in [`../CHANGELOG.md`](../CHANGELOG.md).
+
 > Reviewer mode: top-tier Pub.dev maintainer / Flutter architect.
 > Version reviewed: `0.3.0` · Branch: `main` · Date: 2026-06-19
 > Standard applied: "Would thousands of production teams choose, trust, and promote this?"

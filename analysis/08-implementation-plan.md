@@ -8,6 +8,23 @@
 
 ---
 
+## ✅ Status — COMPLETED in v1.0.0 (PR #5, merged 2026-06-19)
+
+All 16 tasks below were implemented, verified, and merged to `main`.
+
+| Phase | Tasks | Status |
+|-------|-------|:------:|
+| 1 — Publish blockers | T1–T5 | ✅ done |
+| 2 — Correctness & resource safety | T6–T9 | ✅ done |
+| 3 — API hygiene & DX | T10–T12 | ✅ done |
+| 4 — Tests, example, infra, docs | T13–T16 | ✅ done |
+
+Verification at merge: `dart format` clean · `flutter analyze` 0 issues ·
+`flutter test` 52 passed · `dart pub publish --dry-run` 0 warnings · CI green.
+The checklists below are kept as the historical plan of record.
+
+---
+
 ## Strategy & sequencing
 
 Four phases. **Phase 1 must ship before any publish.** Phases are mostly

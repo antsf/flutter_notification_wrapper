@@ -2,6 +2,13 @@
 
 > Dibuat: 2026-06-19 · Versi yang dianalisa: `0.3.0` · Branch: `main`
 
+> ✅ **SUDAH DITINDAKLANJUTI di v1.0.0** (PR #5, merged 2026-06-19). Dokumen 00–05
+> ini adalah snapshot analisa awal `0.3.0`. Review tajam + plan implementasi ada
+> di [`06-brutal-review.md`](06-brutal-review.md),
+> [`07-review-of-review.md`](07-review-of-review.md), dan
+> [`08-implementation-plan.md`](08-implementation-plan.md) — semuanya sudah
+> diimplementasikan. Lihat juga `1.0.0` di [`../CHANGELOG.md`](../CHANGELOG.md).
+
 Dokumen ini adalah hasil pembacaan menyeluruh seluruh kode package. Tujuannya
 memetakan **apa yang rusak, apa yang bisa dioptimalkan, apa yang perlu di-improve,
 apa yang perlu ditambah, dan apa yang sudah bagus / masih relevan.**

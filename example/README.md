@@ -1,17 +1,51 @@
-# flutter_notification_wrapper_example
+# flutter_notification_wrapper — example
 
-A new Flutter project.
+A runnable demo of [`flutter_notification_wrapper`](../). It exercises the local
+notification features on a single screen:
 
-## Getting Started
+- Request notification permission (contextually, not at startup)
+- Regular notification (returns its id)
+- Action-button notification
+- Reply notification
+- Scheduled notification (+5s)
+- Grouped notifications
+- Badge set / clear
+- Cancel all
 
-This project is a starting point for a Flutter application.
+## Run it
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+cd example
+flutter pub get
+flutter run
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+The example runs **without Firebase configured** — every feature above is served
+by AwesomeNotifications alone, so you can try the package in under a minute.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Enabling Firebase Cloud Messaging (optional)
+
+To receive push messages (foreground / background / terminated):
+
+1. Add `google-services.json` to `android/app/` and
+   `GoogleService-Info.plist` to `ios/Runner/`.
+2. Generate `firebase_options.dart` with the
+   [FlutterFire CLI](https://firebase.google.com/docs/flutter/setup):
+   ```bash
+   flutterfire configure
+   ```
+3. Pass the options in `lib/main.dart`:
+   ```dart
+   await DefaultNotificationHandler.initializeSharedInstance(
+     config: config,
+     firebaseOptions: DefaultFirebaseOptions.currentPlatform,
+   );
+   ```
+
+## Android 13+ note
+
+`POST_NOTIFICATIONS` is already declared in
+`android/app/src/main/AndroidManifest.xml`. Without it, notifications won't show
+on Android 13+ even after the runtime permission is granted.
+
+See the [package README](../README.md) for the full API and configuration guide.
