@@ -3,22 +3,25 @@
 [![pub package](https://img.shields.io/pub/v/flutter_notification_wrapper.svg)](https://pub.dev/packages/flutter_notification_wrapper)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A comprehensive Flutter package that provides a unified interface for Firebase Cloud Messaging and AwesomeNotifications with advanced features like background handling, action buttons, scheduling, and more.
+A Flutter package that provides a unified interface for Firebase Cloud Messaging and AwesomeNotifications with background handling, action buttons, scheduling, grouping, and badge management.
+
+> **Status:** `1.0.0-beta.1` — published for real-world feedback. The API is close
+> to stable but may still change before `1.0.0`. Supports **Android & iOS** only.
 
 ## 🚀 Features
 
-- **Unified Interface**: Single API for both Firebase Cloud Messaging and AwesomeNotifications
-- **Cross-Platform**: Full support for Android and iOS
-- **Background Processing**: Handle notifications in foreground, background, and terminated states
-- **Interactive Notifications**: Support for action buttons, reply notifications, and custom interactions
-- **Advanced Scheduling**: Schedule notifications for future delivery
-- **Notification Grouping**: Group related notifications together
-- **Badge Management**: Update and clear app badge counts
-- **Customizable Channels**: Multiple notification channels with different priorities and behaviors
-- **Debug Tools**: Built-in simulation and debugging capabilities
-- **Type Safety**: Full Dart type safety with comprehensive error handling
-- **Reactive State**: Built-in reactive programming utilities
-- **Comprehensive Logging**: Configurable logging system for debugging
+- **Unified Interface**: Single API over Firebase Cloud Messaging (delivery) and AwesomeNotifications (display)
+- **Background & Terminated Handling**: Foreground, background, and terminated-state messages
+- **Cold-start Deep Links**: `getInitialMessage()` / `getInitialAction()` for taps that launched the app
+- **Streams & Callbacks**: Listen via streams (`onActionReceived`, `onMessageOpened`, …) or constructor overrides
+- **Interactive Notifications**: Action buttons and reply notifications
+- **Scheduling**: Schedule notifications for future delivery
+- **Notification Grouping** and **Badge Management**
+- **FCM Topics**: `subscribeToTopic` / `unsubscribeFromTopic`
+- **Customizable Channels**: Priorities, sound, vibration, privacy via `NotificationConfig`
+
+> A small set of optional helpers (`Logger`, `Rx`, `Debouncer`) used internally is
+> available via a separate `package:flutter_notification_wrapper/utils.dart` import.
 
 ## 📦 Installation
 
@@ -328,11 +331,49 @@ if (status == AuthorizationStatus.authorized) {
 final token = await handler.getFcmToken();
 print('FCM Token: $token');
 
-// Listen for token refresh
-await handler.refreshToken((newToken) {
+// Listen for token refresh (stream)
+handler.onTokenRefresh.listen((newToken) {
   print('Token refreshed: $newToken');
   // Send token to your server
 });
+
+// Topics
+await handler.subscribeToTopic('news');
+await handler.unsubscribeFromTopic('news');
+```
+
+### Listening to events (streams)
+
+Prefer streams when you need to react from more than one place in the app:
+
+```dart
+final handler = DefaultNotificationHandler.I;
+
+handler.onForegroundMessage.listen((message) { /* FCM in foreground */ });
+handler.onMessageOpened.listen((message)    { /* FCM tapped (from background) */ });
+handler.onActionReceived.listen((action)    { /* notification / button tapped */ });
+```
+
+### Cold-start deep links
+
+When the app is launched from a **terminated** state by tapping a notification,
+read the initial message/action once after `initialize`:
+
+```dart
+final message = await handler.getInitialMessage();   // RemoteMessage? (FCM)
+final action  = await handler.getInitialAction();    // ReceivedAction? (local)
+if (message != null) navigateFromData(message.data);
+if (action != null)  navigateFromPayload(action.payload);
+```
+
+### Rich (big-picture) notifications
+
+```dart
+await handler.showBigPictureNotification(
+  title: 'New photo',
+  body: 'Tap to view',
+  bigPicture: 'https://example.com/image.jpg', // or asset://, resource://, file://
+);
 ```
 
 ## 🧪 Testing and Debugging
@@ -456,6 +497,16 @@ await DefaultNotificationHandler.initializeSharedInstance(
 | `defaultPrivacy`           | `NotificationPrivacy`     | Privacy level                     | `Public`    |
 | `wakeUpScreen`             | `bool`                    | Wake/turn on screen on display    | `false`     |
 | `category`                 | `NotificationCategory?`   | Default notification category     | `null`      |
+
+## ✅ Verification & Known Limitations
+
+- Unit tests cover config→channel mapping, id generation, and the real handler
+  logic (via an injected, mockable `AwesomeNotifications`/`FirebaseMessaging`).
+- An example smoke integration test proves the end-to-end path on a device.
+- **Terminated-state FCM delivery** is verified manually (it needs a real device
+  + a push server). See [`VERIFICATION.md`](VERIFICATION.md) for the procedure.
+- **Limitations:** Android & iOS only; a single process-wide handler instance
+  (`DefaultNotificationHandler.I`).
 
 ## 🤝 Contributing
 

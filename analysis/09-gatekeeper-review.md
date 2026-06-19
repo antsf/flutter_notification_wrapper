@@ -1,5 +1,13 @@
 # Gatekeeper Review — `flutter_notification_wrapper@1.0.0`
 
+> ✅ **ADDRESSED in `1.0.0-beta.1`.** All blockers (#1–#8) plus Phase A/B/C of the
+> action plan were implemented: wiki link removed, README/CHANGELOG fixed,
+> re-versioned to beta, `getInitialMessage()/getInitialAction()`, event streams,
+> `Future<int?>` show methods, an injectable plugin seam + real handler tests,
+> FCM topics, big-picture helper, and a terminated-state verification procedure
+> ([`../VERIFICATION.md`](../VERIFICATION.md)). This document is retained as the
+> pre-hardening assessment.
+
 > Strict "does this deserve to be on Pub.dev" audit of the **current `main`
 > (v1.0.0)**, after the overhaul in PR #5. Date: 2026-06-20.
 > Companion to [`06-brutal-review.md`](06-brutal-review.md) (review of `0.3.0`)

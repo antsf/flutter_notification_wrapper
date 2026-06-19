@@ -11,13 +11,16 @@ import 'utils/logger.dart';
 /// Abstract contract for a unified Firebase Cloud Messaging +
 /// AwesomeNotifications handler.
 ///
-/// The concrete [DefaultNotificationHandler] implements every method below.
+/// The concrete [DefaultNotificationHandler] implements every member below.
 /// Consumers normally use that implementation via
 /// [DefaultNotificationHandler.initializeSharedInstance]; this abstraction
 /// exists so the behavior can be swapped or faked in tests.
 ///
-/// All message/notification lifecycle callbacks can be overridden through the
-/// constructor. Anything not overridden falls back to a logging-only default.
+/// You can react to events two ways:
+///  * **Streams** ([onForegroundMessage], [onMessageOpened], [onActionReceived],
+///    [onTokenRefresh]) — listen from anywhere, anytime.
+///  * **Constructor overrides** — pass `onMessageOverride`, etc. for a single
+///    centralized handler. Anything not overridden falls back to logging.
 abstract class NotificationWrapper {
   /// Creates a wrapper, optionally overriding lifecycle callbacks.
   NotificationWrapper({
@@ -76,37 +79,62 @@ abstract class NotificationWrapper {
     bool requestPermissionsOnInit = false,
   });
 
-  // ================== FCM TOKEN METHODS ===================
-  Future<String?> getFcmToken();
+  // ================== EVENT STREAMS ===================
+  // Broadcast streams — listen from anywhere. Prefer these over the constructor
+  // overrides when you need to react from multiple places in the app.
 
-  /// Registers [onTokenRefresh] to be called whenever the FCM token changes.
-  ///
-  /// Idempotent: calling this repeatedly replaces the previous callback rather
-  /// than stacking subscriptions.
-  Future<void> refreshToken(void Function(String) onTokenRefresh);
+  /// Foreground FCM messages.
+  Stream<RemoteMessage> get onForegroundMessage;
+
+  /// FCM messages whose notification was tapped to bring the app to the
+  /// foreground (from background, not terminated — see [getInitialMessage]).
+  Stream<RemoteMessage> get onMessageOpened;
+
+  /// User interactions (taps / action buttons) on AwesomeNotifications.
+  Stream<ReceivedAction> get onActionReceived;
+
+  /// FCM device-token refreshes. Send the new token to your server here.
+  Stream<String> get onTokenRefresh;
+
+  // ================== COLD-START / DEEP LINK ===================
+
+  /// The FCM message that launched the app from a terminated state by tapping
+  /// its notification, or `null` if the app was not launched that way. Call once
+  /// after [initialize] to deep-link from a cold start.
+  Future<RemoteMessage?> getInitialMessage();
+
+  /// The notification action that launched the app from a terminated state, or
+  /// `null`. Use to deep-link from a tapped local notification on cold start.
+  Future<ReceivedAction?> getInitialAction();
+
+  // ================== FCM TOKEN & TOPICS ===================
+  Future<String?> getFcmToken();
+  Future<void> subscribeToTopic(String topic);
+  Future<void> unsubscribeFromTopic(String topic);
 
   // ================== NOTIFICATION PERMISSIONS ===================
   Future<AuthorizationStatus> requestPermissions();
   Future<bool> isNotificationAllowed();
 
   // ================== NOTIFICATION DISPLAY ===================
-  // Display methods return the generated notification id so callers can later
-  // cancel or update the notification they created.
-  Future<int> showNotification(RemoteMessage message);
-  Future<int> showRegularNotification({
+  // Display methods return the generated notification id on success, or `null`
+  // if the platform failed to create the notification — so the return value is
+  // an honest success signal you can later pass to [cancelNotification].
+  Future<int?> showNotification(RemoteMessage message);
+  Future<int?> showRegularNotification({
     required String title,
     required String body,
     Map<String, String>? payload,
     String? channelKey,
   });
-  Future<int> showActionNotification({
+  Future<int?> showActionNotification({
     required String title,
     required String body,
     List<NotificationActionButton> buttons,
     Map<String, String>? payload,
     String? channelKey,
   });
-  Future<int> showReplyNotification({
+  Future<int?> showReplyNotification({
     required String title,
     required String body,
     String? replyLabel,
@@ -114,11 +142,22 @@ abstract class NotificationWrapper {
     Map<String, String>? payload,
     String? channelKey,
   });
+
+  /// Shows a big-picture notification. [bigPicture] is an AwesomeNotifications
+  /// resource (e.g. `asset://...`, `resource://...`, `file://...`, or a URL).
+  Future<int?> showBigPictureNotification({
+    required String title,
+    required String body,
+    required String bigPicture,
+    String? largeIcon,
+    Map<String, String>? payload,
+    String? channelKey,
+  });
   Future<List<int>> showGroupedNotification(
     String groupKey,
     List<NotificationContent> messages,
   );
-  Future<int> scheduleNotification({
+  Future<int?> scheduleNotification({
     required int id,
     required String title,
     required String body,
@@ -135,15 +174,15 @@ abstract class NotificationWrapper {
 
   // ================== SETTINGS & DEBUG ===================
   Future<void> openNotificationSettings();
-  Future<int> simulateNotification({
+  Future<int?> simulateNotification({
     required String title,
     required String body,
     Map<String, dynamic>? data,
     String? channelKey,
   });
 
-  /// Cancels listeners and releases resources. Call when the handler is no
-  /// longer needed (e.g. on logout or app teardown).
+  /// Cancels listeners, closes streams and releases resources. Call when the
+  /// handler is no longer needed (e.g. on logout or app teardown).
   void dispose();
 
   // ================== STATIC DEFAULT HANDLERS ===================

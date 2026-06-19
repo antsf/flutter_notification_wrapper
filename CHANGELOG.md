@@ -5,10 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2026-06-19
+## [1.0.0-beta.1] - 2026-06-20
 
-First production-ready release. This is a correctness and API-hygiene overhaul
-with several **breaking changes**.
+First published release. A correctness and API-hygiene overhaul with several
+**breaking changes**, published as a beta to gather real-world feedback before a
+stable `1.0.0`.
 
 ### Fixed (critical)
 - **Channels now honor `NotificationConfig`.** Channel setup previously hardcoded
@@ -25,9 +26,12 @@ with several **breaking changes**.
 
 ### Changed (breaking)
 - `onFailedToResolveHostname` → **`onError(Object error, StackTrace stackTrace)`**.
-- Display methods now **return the notification id**: `showRegularNotification`,
-  `showActionNotification`, `showReplyNotification`, `scheduleNotification` return
-  `Future<int>`; `showGroupedNotification` returns `Future<List<int>>`.
+- Display methods now **return a nullable id** — `Future<int?>` — returning the
+  id on success and `null` when the platform failed to create the notification,
+  so the return value is an honest success signal you can pass to
+  `cancelNotification`. (`showGroupedNotification` returns the list of ids that
+  were actually created.)
+- **`refreshToken(callback)` removed** in favor of the `onTokenRefresh` stream.
 - `scheduleNotification` now uses **named parameters**:
   `scheduleNotification(id:, title:, body:, scheduledDate:, ...)`.
 - **Permissions are opt-in.** `initialize`/`initializeSharedInstance` no longer
@@ -44,6 +48,16 @@ with several **breaking changes**.
   unused `type.dart` typedefs.
 
 ### Added
+- **Event streams** — `onForegroundMessage`, `onMessageOpened`,
+  `onActionReceived`, `onTokenRefresh` — listen from anywhere (in addition to the
+  constructor overrides).
+- **Cold-start deep links** — `getInitialMessage()` and `getInitialAction()` for
+  taps that launched the app from a terminated state.
+- **FCM topics** — `subscribeToTopic()` / `unsubscribeFromTopic()`.
+- **`showBigPictureNotification()`** rich-layout helper.
+- **Injectable plugin seam** — `AwesomeNotifications` / `FirebaseMessaging` can be
+  injected (via `@visibleForTesting createForTest`), enabling real unit tests of
+  the display/permission/topic logic (mocktail).
 - Deterministic, unique, retrievable notification ids (no more 100s-wrap
   collisions or `messageId.hashCode == 0` overwrites).
 - `permissionStatus` getter + `permissionStatusStream`.
@@ -75,7 +89,7 @@ with several **breaking changes**.
 + import 'package:flutter_notification_wrapper/utils.dart';
 ```
 
-## [0.3.0] - 2024-01-XX
+## [0.3.0] - unreleased
 
 ### Added
 - **Enhanced NotificationConfig**: Added comprehensive configuration options including importance levels, vibration, LED lights, and privacy settings
@@ -105,7 +119,7 @@ with several **breaking changes**.
 - **Version Bump**: Updated to version 0.3.0 with improved dependency versions
 - **Documentation**: Complete rewrite of README with comprehensive examples and setup instructions
 
-## [0.2.0] - 2024-01-XX
+## [0.2.0] - unreleased
 
 ### Added
 - Initial implementation of NotificationWrapper abstract class
@@ -125,7 +139,7 @@ with several **breaking changes**.
 - Permission handling
 - Debug and simulation tools
 
-## [0.1.0] - 2024-01-XX
+## [0.1.0] - unreleased
 
 ### Added
 - Initial project setup

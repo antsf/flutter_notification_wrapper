@@ -37,6 +37,17 @@ Future<void> main() async {
     },
   );
 
+  // Cold-start deep links: read whatever launched the app from a terminated
+  // state (null in the common case).
+  final initialMessage = await DefaultNotificationHandler.I.getInitialMessage();
+  if (initialMessage != null) {
+    debugPrint('Launched from FCM message: ${initialMessage.data}');
+  }
+  final initialAction = await DefaultNotificationHandler.I.getInitialAction();
+  if (initialAction != null) {
+    debugPrint('Launched from notification action: ${initialAction.payload}');
+  }
+
   runApp(const ExampleApp());
 }
 
