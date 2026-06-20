@@ -22,6 +22,8 @@ import 'utils/rx.dart';
 /// handler via [DefaultNotificationHandler.I].
 class DefaultNotificationHandler extends NotificationWrapper {
   DefaultNotificationHandler._internal({
+    AwesomeNotifications? awesomeNotifications,
+    FirebaseMessaging? firebaseMessaging,
     super.onMessageOverride,
     super.onMessageOpenedAppOverride,
     super.onBackgroundMessageOverride,
@@ -31,9 +33,18 @@ class DefaultNotificationHandler extends NotificationWrapper {
     super.handleActionReceivedOverride,
     super.onError,
     super.onPermissionEvent,
-  });
+  })  : _awesomeOverride = awesomeNotifications,
+        _messagingOverride = firebaseMessaging;
 
   static const Logger _logger = Logger('DefaultNotificationHandler');
+
+  // --- Injectable plugin seams (default to the real singletons) ---
+  final AwesomeNotifications? _awesomeOverride;
+  final FirebaseMessaging? _messagingOverride;
+  AwesomeNotifications get _awesome =>
+      _awesomeOverride ?? AwesomeNotifications();
+  FirebaseMessaging get _messaging =>
+      _messagingOverride ?? FirebaseMessaging.instance;
 
   final Debouncer _notificationDebouncer =
       Debouncer(delay: const Duration(milliseconds: 500));
@@ -49,13 +60,32 @@ class DefaultNotificationHandler extends NotificationWrapper {
   Stream<AuthorizationStatus> get permissionStatusStream =>
       _permissionStatus.stream;
 
+  // --- Event streams (broadcast) ---
+  final StreamController<RemoteMessage> _foregroundMessageController =
+      StreamController<RemoteMessage>.broadcast();
+  final StreamController<RemoteMessage> _messageOpenedController =
+      StreamController<RemoteMessage>.broadcast();
+  final StreamController<ReceivedAction> _actionController =
+      StreamController<ReceivedAction>.broadcast();
+  final StreamController<String> _tokenRefreshController =
+      StreamController<String>.broadcast();
+
+  @override
+  Stream<RemoteMessage> get onForegroundMessage =>
+      _foregroundMessageController.stream;
+  @override
+  Stream<RemoteMessage> get onMessageOpened => _messageOpenedController.stream;
+  @override
+  Stream<ReceivedAction> get onActionReceived => _actionController.stream;
+  @override
+  Stream<String> get onTokenRefresh => _tokenRefreshController.stream;
+
   bool _permissionRequestLock = false;
   NotificationConfig? _config;
 
   // Active stream subscriptions, cancelled on [dispose] / re-init.
   final List<StreamSubscription<dynamic>> _subscriptions =
       <StreamSubscription<dynamic>>[];
-  StreamSubscription<String>? _tokenRefreshSub;
 
   static ReceivePort? _receivePort;
   static const String _portName = 'notification_action_port';
@@ -111,6 +141,25 @@ class DefaultNotificationHandler extends NotificationWrapper {
   /// Exposes the internal stable-id derivation for tests.
   @visibleForTesting
   static int debugStableId(String? key) => _stableId(key);
+
+  /// Creates an instance wired to injected plugins and registers it as the
+  /// shared singleton, *without* running [initialize]. Test-only.
+  @visibleForTesting
+  static DefaultNotificationHandler createForTest({
+    required AwesomeNotifications awesomeNotifications,
+    FirebaseMessaging? firebaseMessaging,
+    NotificationConfig? config,
+    void Function(Object error, StackTrace stackTrace)? onError,
+  }) {
+    final handler = DefaultNotificationHandler._internal(
+      awesomeNotifications: awesomeNotifications,
+      firebaseMessaging: firebaseMessaging,
+      onError: onError,
+    );
+    handler._config = config ?? NotificationConfig.defaultConfig();
+    _instance = handler;
+    return handler;
+  }
 
   /// Resets the singleton. Test-only.
   @visibleForTesting
@@ -187,12 +236,23 @@ class DefaultNotificationHandler extends NotificationWrapper {
         FirebaseMessaging.onMessage.listen((message) {
           _logger.d('FCM onMessage: ${message.messageId}');
           onMessage(message);
+          if (!_foregroundMessageController.isClosed) {
+            _foregroundMessageController.add(message);
+          }
         }),
       );
       _subscriptions.add(
         FirebaseMessaging.onMessageOpenedApp.listen((message) {
           _logger.d('FCM onMessageOpenedApp: ${message.messageId}');
-          _debounceHandleNotification(message, onMessageOpenedApp);
+          _debounceHandleNotification(message, _handleMessageOpened);
+        }),
+      );
+      _subscriptions.add(
+        _messaging.onTokenRefresh.listen((token) {
+          _logger.i('FCM Token refreshed: $token');
+          if (!_tokenRefreshController.isClosed) {
+            _tokenRefreshController.add(token);
+          }
         }),
       );
     } else {
@@ -208,13 +268,18 @@ class DefaultNotificationHandler extends NotificationWrapper {
     _logger.d('DefaultNotificationHandler initialized.');
   }
 
+  void _handleMessageOpened(RemoteMessage message) {
+    onMessageOpenedApp(message);
+    if (!_messageOpenedController.isClosed) {
+      _messageOpenedController.add(message);
+    }
+  }
+
   Future<void> _clearSubscriptions() async {
     for (final sub in _subscriptions) {
       await sub.cancel();
     }
     _subscriptions.clear();
-    await _tokenRefreshSub?.cancel();
-    _tokenRefreshSub = null;
   }
 
   Future<void> _setupNotificationChannels() async {
@@ -251,7 +316,7 @@ class DefaultNotificationHandler extends NotificationWrapper {
       for (final channel in channels) channel.channelKey!: channel,
     };
 
-    await AwesomeNotifications().initialize(
+    await _awesome.initialize(
       config.androidNotificationIcon,
       unique.values.toList(),
       debug: kDebugMode,
@@ -310,12 +375,36 @@ class DefaultNotificationHandler extends NotificationWrapper {
     return key.hashCode & 0x7FFFFFFF;
   }
 
-  // ================== FCM ===================
+  // ================== COLD-START / DEEP LINK ===================
+
+  @override
+  Future<RemoteMessage?> getInitialMessage() async {
+    try {
+      return await _messaging.getInitialMessage();
+    } catch (e, st) {
+      _logger.e('Error reading initial FCM message: $e');
+      onError?.call(e, st);
+      return null;
+    }
+  }
+
+  @override
+  Future<ReceivedAction?> getInitialAction() async {
+    try {
+      return await _awesome.getInitialNotificationAction();
+    } catch (e, st) {
+      _logger.e('Error reading initial notification action: $e');
+      onError?.call(e, st);
+      return null;
+    }
+  }
+
+  // ================== FCM TOKEN & TOPICS ===================
 
   @override
   Future<String?> getFcmToken() async {
     try {
-      final token = await FirebaseMessaging.instance.getToken();
+      final token = await _messaging.getToken();
       _logger.d('FCM Token: $token');
       return token;
     } catch (e, st) {
@@ -326,19 +415,31 @@ class DefaultNotificationHandler extends NotificationWrapper {
   }
 
   @override
-  Future<void> refreshToken(void Function(String) onTokenRefresh) async {
-    await _tokenRefreshSub?.cancel();
-    _tokenRefreshSub =
-        FirebaseMessaging.instance.onTokenRefresh.listen((token) {
-      _logger.i('FCM Token refreshed: $token');
-      onTokenRefresh(token);
-    });
+  Future<void> subscribeToTopic(String topic) async {
+    try {
+      await _messaging.subscribeToTopic(topic);
+      _logger.d('Subscribed to topic: $topic');
+    } catch (e, st) {
+      _logger.e('Error subscribing to topic "$topic": $e');
+      onError?.call(e, st);
+    }
+  }
+
+  @override
+  Future<void> unsubscribeFromTopic(String topic) async {
+    try {
+      await _messaging.unsubscribeFromTopic(topic);
+      _logger.d('Unsubscribed from topic: $topic');
+    } catch (e, st) {
+      _logger.e('Error unsubscribing from topic "$topic": $e');
+      onError?.call(e, st);
+    }
   }
 
   // ================== DISPLAY ===================
 
   @override
-  Future<int> showNotification(RemoteMessage message) async {
+  Future<int?> showNotification(RemoteMessage message) async {
     await _ensureChannelsInitialized();
     final config = _config ??= NotificationConfig.defaultConfig();
     final id = _stableId(message.messageId);
@@ -348,7 +449,7 @@ class DefaultNotificationHandler extends NotificationWrapper {
         message.data['body'] ??
         'You have a new message.';
     try {
-      await AwesomeNotifications().createNotification(
+      await _awesome.createNotification(
         content: NotificationContent(
           id: id,
           channelKey: config.channelKey,
@@ -362,18 +463,19 @@ class DefaultNotificationHandler extends NotificationWrapper {
         ),
       );
       _logger.d('Local notification created for FCM: ${message.messageId}');
+      return id;
     } catch (e, st) {
       _logger.e('Error showing notification from FCM: $e');
       onError?.call(e, st);
+      return null;
     }
-    return id;
   }
 
   Map<String, String?> _convertPayload(Map<String, dynamic> data) =>
       data.map((key, value) => MapEntry(key, value?.toString()));
 
   @override
-  Future<int> showRegularNotification({
+  Future<int?> showRegularNotification({
     required String title,
     required String body,
     Map<String, String>? payload,
@@ -384,7 +486,7 @@ class DefaultNotificationHandler extends NotificationWrapper {
     final id = _generateId();
     _logger.d('Showing regular notification: "$title"');
     try {
-      await AwesomeNotifications().createNotification(
+      await _awesome.createNotification(
         content: NotificationContent(
           id: id,
           channelKey: channelKey ?? config.channelKey,
@@ -396,15 +498,16 @@ class DefaultNotificationHandler extends NotificationWrapper {
           category: config.category,
         ),
       );
+      return id;
     } catch (e, st) {
       _logger.e('Error showing regular notification: $e');
       onError?.call(e, st);
+      return null;
     }
-    return id;
   }
 
   @override
-  Future<int> showActionNotification({
+  Future<int?> showActionNotification({
     required String title,
     required String body,
     List<NotificationActionButton>? buttons,
@@ -416,7 +519,7 @@ class DefaultNotificationHandler extends NotificationWrapper {
     final id = _generateId();
     _logger.d('Showing action notification: "$title"');
     try {
-      await AwesomeNotifications().createNotification(
+      await _awesome.createNotification(
         content: NotificationContent(
           id: id,
           channelKey: channelKey ?? config.channelKey,
@@ -429,15 +532,16 @@ class DefaultNotificationHandler extends NotificationWrapper {
         ),
         actionButtons: buttons,
       );
+      return id;
     } catch (e, st) {
       _logger.e('Error showing action notification: $e');
       onError?.call(e, st);
+      return null;
     }
-    return id;
   }
 
   @override
-  Future<int> showReplyNotification({
+  Future<int?> showReplyNotification({
     required String title,
     required String body,
     String? replyLabel,
@@ -459,7 +563,7 @@ class DefaultNotificationHandler extends NotificationWrapper {
               actionType: ActionType.SilentBackgroundAction,
             ),
       ];
-      await AwesomeNotifications().createNotification(
+      await _awesome.createNotification(
         content: NotificationContent(
           id: id,
           channelKey: channelKey ?? config.channelKey,
@@ -473,11 +577,49 @@ class DefaultNotificationHandler extends NotificationWrapper {
         ),
         actionButtons: actionButtons,
       );
+      return id;
     } catch (e, st) {
       _logger.e('Error showing reply notification: $e');
       onError?.call(e, st);
+      return null;
     }
-    return id;
+  }
+
+  @override
+  Future<int?> showBigPictureNotification({
+    required String title,
+    required String body,
+    required String bigPicture,
+    String? largeIcon,
+    Map<String, String>? payload,
+    String? channelKey,
+  }) async {
+    await _ensureChannelsInitialized();
+    final config = _config ??= NotificationConfig.defaultConfig();
+    final id = _generateId();
+    _logger.d('Showing big-picture notification: "$title"');
+    try {
+      await _awesome.createNotification(
+        content: NotificationContent(
+          id: id,
+          channelKey: channelKey ?? config.channelKey,
+          title: title,
+          body: body,
+          payload: payload,
+          color: config.defaultColor,
+          wakeUpScreen: config.wakeUpScreen,
+          category: config.category,
+          notificationLayout: NotificationLayout.BigPicture,
+          bigPicture: bigPicture,
+          largeIcon: largeIcon,
+        ),
+      );
+      return id;
+    } catch (e, st) {
+      _logger.e('Error showing big-picture notification: $e');
+      onError?.call(e, st);
+      return null;
+    }
   }
 
   @override
@@ -489,11 +631,10 @@ class DefaultNotificationHandler extends NotificationWrapper {
     final config = _config ??= NotificationConfig.defaultConfig();
     _logger.d('Showing grouped notification (group: $groupKey)');
     final ids = <int>[];
-    try {
-      for (final messageContent in messages) {
-        final id = messageContent.id ?? _generateId();
-        ids.add(id);
-        await AwesomeNotifications().createNotification(
+    for (final messageContent in messages) {
+      final id = messageContent.id ?? _generateId();
+      try {
+        await _awesome.createNotification(
           content: NotificationContent(
             id: id,
             channelKey: messageContent.channelKey ?? config.channelKey,
@@ -509,16 +650,17 @@ class DefaultNotificationHandler extends NotificationWrapper {
             color: messageContent.color ?? config.defaultColor,
           ),
         );
+        ids.add(id);
+      } catch (e, st) {
+        _logger.e('Error showing grouped notification $id: $e');
+        onError?.call(e, st);
       }
-    } catch (e, st) {
-      _logger.e('Error showing grouped notifications: $e');
-      onError?.call(e, st);
     }
     return ids;
   }
 
   @override
-  Future<int> scheduleNotification({
+  Future<int?> scheduleNotification({
     required int id,
     required String title,
     required String body,
@@ -530,7 +672,7 @@ class DefaultNotificationHandler extends NotificationWrapper {
     final config = _config ??= NotificationConfig.defaultConfig();
     _logger.d('Scheduling notification ID $id: "$title" for $scheduledDate');
     try {
-      await AwesomeNotifications().createNotification(
+      await _awesome.createNotification(
         schedule: NotificationCalendar.fromDate(
           date: scheduledDate,
           allowWhileIdle: true,
@@ -546,45 +688,46 @@ class DefaultNotificationHandler extends NotificationWrapper {
           category: config.category ?? NotificationCategory.Reminder,
         ),
       );
+      return id;
     } catch (e, st) {
       _logger.e('Error scheduling notification: $e');
       onError?.call(e, st);
+      return null;
     }
-    return id;
   }
 
   @override
   Future<void> cancelNotification(int id) async {
     _logger.d('Cancelling notification ID: $id');
-    await AwesomeNotifications().cancel(id);
+    await _awesome.cancel(id);
   }
 
   @override
   Future<void> cancelAllNotifications() async {
     _logger.d('Cancelling all notifications.');
-    await AwesomeNotifications().cancelAll();
+    await _awesome.cancelAll();
   }
 
   @override
   Future<void> updateBadgeCount(int count) async {
     _logger.d('Updating badge count to: $count');
-    await AwesomeNotifications().setGlobalBadgeCounter(count);
+    await _awesome.setGlobalBadgeCounter(count);
   }
 
   @override
   Future<void> clearBadgeCount() async {
     _logger.d('Clearing badge count.');
-    await AwesomeNotifications().resetGlobalBadge();
+    await _awesome.resetGlobalBadge();
   }
 
   @override
   Future<void> openNotificationSettings() async {
     _logger.d('Opening notification settings.');
-    await AwesomeNotifications().showNotificationConfigPage();
+    await _awesome.showNotificationConfigPage();
   }
 
   @override
-  Future<int> simulateNotification({
+  Future<int?> simulateNotification({
     required String title,
     required String body,
     Map<String, dynamic>? data,
@@ -610,6 +753,10 @@ class DefaultNotificationHandler extends NotificationWrapper {
     }
     _notificationDebouncer.cancel();
     _permissionStatus.dispose();
+    unawaited(_foregroundMessageController.close());
+    unawaited(_messageOpenedController.close());
+    unawaited(_actionController.close());
+    unawaited(_tokenRefreshController.close());
   }
 
   // ================== PERMISSIONS ===================
@@ -624,21 +771,20 @@ class DefaultNotificationHandler extends NotificationWrapper {
     _logger.i('Requesting notification permissions...');
 
     try {
-      var settings = await FirebaseMessaging.instance.getNotificationSettings();
+      var settings = await _messaging.getNotificationSettings();
       _permissionStatus.value = settings.authorizationStatus;
 
       if (settings.authorizationStatus == AuthorizationStatus.notDetermined ||
           settings.authorizationStatus == AuthorizationStatus.denied) {
-        settings = await FirebaseMessaging.instance.requestPermission();
+        settings = await _messaging.requestPermission();
         _permissionStatus.value = settings.authorizationStatus;
         onPermissionEvent?.call('notification_permission_fcm_request', {
           'status': settings.authorizationStatus.toString(),
         });
       }
 
-      if (!await AwesomeNotifications().isNotificationAllowed()) {
-        final granted =
-            await AwesomeNotifications().requestPermissionToSendNotifications(
+      if (!await _awesome.isNotificationAllowed()) {
+        final granted = await _awesome.requestPermissionToSendNotifications(
           channelKey: _config?.channelKey,
           permissions: const [
             NotificationPermission.Alert,
@@ -666,13 +812,12 @@ class DefaultNotificationHandler extends NotificationWrapper {
   }
 
   @override
-  Future<bool> isNotificationAllowed() =>
-      AwesomeNotifications().isNotificationAllowed();
+  Future<bool> isNotificationAllowed() => _awesome.isNotificationAllowed();
 
   // ================== AWESOME EVENT LISTENERS ===================
 
   Future<void> _startListeningAwesomeNotificationEvents() async {
-    await AwesomeNotifications().setListeners(
+    await _awesome.setListeners(
       onActionReceivedMethod: _onActionReceivedMethod,
       onNotificationCreatedMethod: _onNotificationCreatedMethod,
       onNotificationDisplayedMethod: _onNotificationDisplayedMethod,
@@ -708,7 +853,11 @@ class DefaultNotificationHandler extends NotificationWrapper {
   static Future<void> _onActionReceivedImplementation(
     ReceivedAction receivedAction,
   ) async {
-    await DefaultNotificationHandler.I.handleActionReceived(receivedAction);
+    final handler = DefaultNotificationHandler.I;
+    if (!handler._actionController.isClosed) {
+      handler._actionController.add(receivedAction);
+    }
+    await handler.handleActionReceived(receivedAction);
   }
 
   static Future<void> _initializeIsolateReceivePort() async {

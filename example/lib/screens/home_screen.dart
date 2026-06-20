@@ -66,6 +66,20 @@ class _HomeScreenState extends State<HomeScreen> {
     _report('Scheduled notification id=$id for $when');
   }
 
+  Future<void> _showBigPicture() async {
+    final id = await _handler.showBigPictureNotification(
+      title: 'New photo',
+      body: 'Tap to view',
+      bigPicture: 'https://picsum.photos/600/300',
+    );
+    _report('Shown big-picture notification id=$id');
+  }
+
+  Future<void> _subscribeTopic() async {
+    await _handler.subscribeToTopic('news');
+    _report('Subscribed to topic "news"');
+  }
+
   Future<void> _showGrouped() async {
     final ids = await _handler.showGroupedNotification('chat_messages', [
       NotificationContent(
@@ -109,7 +123,9 @@ class _HomeScreenState extends State<HomeScreen> {
       ('Show action buttons', _showAction),
       ('Show reply', _showReply),
       ('Schedule (+5s)', _schedule),
+      ('Show big picture', _showBigPicture),
       ('Show grouped', _showGrouped),
+      ('Subscribe to "news" topic', _subscribeTopic),
       ('Set badge = 5', _setBadge),
       ('Clear badge', _clearBadge),
       ('Cancel all', _cancelAll),
