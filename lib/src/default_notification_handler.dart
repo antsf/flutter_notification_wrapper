@@ -80,7 +80,15 @@ class DefaultNotificationHandler extends NotificationWrapper {
   @override
   Stream<String> get onTokenRefresh => _tokenRefreshController.stream;
 
-  bool _permissionRequestLock = false;
+  // In-flight permission request, if any. A plain bool flag would race:
+  // two concurrent callers could both see "not locked" between the check
+  // and the assignment (no await in between, but re-entrant calls from a
+  // synchronous callback are still possible), and a caller that hits the
+  // lock has no way to observe the in-flight result. Storing the Future
+  // itself closes both gaps: setting it is atomic (no intervening await),
+  // and concurrent callers await the same in-flight request instead of a
+  // stale cached value.
+  Future<AuthorizationStatus>? _permissionRequestInFlight;
   NotificationConfig? _config;
 
   // Active stream subscriptions, cancelled on [dispose] / re-init.
@@ -370,9 +378,31 @@ class DefaultNotificationHandler extends NotificationWrapper {
   /// Returns a stable, positive id derived from [key] so the same FCM message
   /// maps to the same notification (idempotent display). Falls back to a fresh
   /// id when [key] is null/empty.
+  ///
+  /// Android notification ids are 32-bit signed ints, so any string->id
+  /// mapping is squeezed into 31 usable bits and collisions can never be
+  /// fully eliminated -- but the quality of the hash still matters. Dart's
+  /// built-in String.hashCode is not specified to be well-distributed, and
+  /// FCM messageIds share long common prefixes/suffixes, which can cluster
+  /// under a weak hash. FNV-1a is a simple, well-distributed
+  /// non-cryptographic hash that avoids that clustering, so it is used here
+  /// instead of the default hashCode.
   static int _stableId(String? key) {
     if (key == null || key.isEmpty) return _generateId();
-    return key.hashCode & 0x7FFFFFFF;
+    return _fnv1a32(key) & 0x7FFFFFFF;
+  }
+
+  /// FNV-1a 32-bit hash (over UTF-16 code units) -- deterministic within and
+  /// across runs, unlike Object.hashCode, which the language spec does not
+  /// guarantee to remain stable across Dart versions.
+  static int _fnv1a32(String input) {
+    const fnvPrime = 0x01000193;
+    var hash = 0x811C9DC5;
+    for (final codeUnit in input.codeUnits) {
+      hash ^= codeUnit;
+      hash = (hash * fnvPrime) & 0xFFFFFFFF;
+    }
+    return hash;
   }
 
   // ================== COLD-START / DEEP LINK ===================
@@ -762,12 +792,18 @@ class DefaultNotificationHandler extends NotificationWrapper {
   // ================== PERMISSIONS ===================
 
   @override
-  Future<AuthorizationStatus> requestPermissions() async {
-    if (_permissionRequestLock) {
-      _logger.w('Permission request already in progress.');
-      return _permissionStatus.value;
+  Future<AuthorizationStatus> requestPermissions() {
+    final inFlight = _permissionRequestInFlight;
+    if (inFlight != null) {
+      _logger.w('Permission request already in progress; awaiting it.');
+      return inFlight;
     }
-    _permissionRequestLock = true;
+    final request = _doRequestPermissions();
+    _permissionRequestInFlight = request;
+    return request;
+  }
+
+  Future<AuthorizationStatus> _doRequestPermissions() async {
     _logger.i('Requesting notification permissions...');
 
     try {
@@ -805,7 +841,7 @@ class DefaultNotificationHandler extends NotificationWrapper {
       _logger.e('Error requesting permissions: $e');
       onError?.call(e, st);
     } finally {
-      _permissionRequestLock = false;
+      _permissionRequestInFlight = null;
     }
     _logger.i('Final permission status: ${_permissionStatus.value}');
     return _permissionStatus.value;
