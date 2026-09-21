@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-beta.2] - 2026-09-21
+
+### Fixed
+- **Notification id collisions**: `_stableId` derived ids from `String.hashCode & 0x7FFFFFFF`. Dart does not guarantee `hashCode` stability across Dart/platform versions, and masking to 31 bits made collisions between distinct FCM message ids more likely than necessary. Replaced with a deterministic FNV-1a 32-bit hash (`_fnv1a32`), masked to a non-negative 31-bit range so ids stay valid for platform notification id fields.
+- **`requestPermissions()` race**: concurrent callers previously read a plain `bool` lock; a second caller arriving while a request was in-flight got back the *current* (possibly stale) permission status instead of the outcome of the request actually in progress. Replaced the lock with a stored in-flight `Future`, so concurrent callers now await and share the same request instead of one of them short-circuiting.
+
 ## [1.0.0-beta.1] - 2026-06-20
 
 First published release. A correctness and API-hygiene overhaul with several

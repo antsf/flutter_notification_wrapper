@@ -100,6 +100,57 @@ void main() {
     });
   });
 
+  group('requestPermissions concurrency (Phase-C hardening)', () {
+    test('concurrent calls share one in-flight request, not overlapping ones',
+        () async {
+      final messaging = MockFirebaseMessaging();
+      var settingsCalls = 0;
+      when(messaging.getNotificationSettings).thenAnswer((_) async {
+        settingsCalls++;
+        // Simulate a slow platform call so both invocations overlap.
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        return const NotificationSettings(
+          authorizationStatus: AuthorizationStatus.authorized,
+          alert: AppleNotificationSetting.enabled,
+          announcement: AppleNotificationSetting.notSupported,
+          badge: AppleNotificationSetting.enabled,
+          carPlay: AppleNotificationSetting.notSupported,
+          lockScreen: AppleNotificationSetting.enabled,
+          notificationCenter: AppleNotificationSetting.enabled,
+          showPreviews: AppleShowPreviewSetting.always,
+          timeSensitive: AppleNotificationSetting.notSupported,
+          criticalAlert: AppleNotificationSetting.notSupported,
+          sound: AppleNotificationSetting.enabled,
+          providesAppNotificationSettings:
+              AppleNotificationSetting.notSupported,
+        );
+      });
+      when(() => awesome.isNotificationAllowed()).thenAnswer((_) async => true);
+
+      final handler = DefaultNotificationHandler.createForTest(
+        awesomeNotifications: awesome,
+        firebaseMessaging: messaging,
+        config: const NotificationConfig(channelKey: 'c', channelName: 'C'),
+      );
+
+      final results = await Future.wait([
+        handler.requestPermissions(),
+        handler.requestPermissions(),
+      ]);
+
+      expect(results[0], AuthorizationStatus.authorized);
+      expect(results[1], AuthorizationStatus.authorized);
+      // The second call must await the first's in-flight request instead of
+      // firing its own overlapping platform call.
+      expect(settingsCalls, 1);
+
+      // A subsequent call, after the first has settled, starts a fresh
+      // request rather than being stuck on the old (now-cleared) one.
+      await handler.requestPermissions();
+      expect(settingsCalls, 2);
+    });
+  });
+
   group('FCM topics + cold start (B1/C1)', () {
     test(
         'subscribeToTopic / unsubscribeFromTopic delegate to FirebaseMessaging',
