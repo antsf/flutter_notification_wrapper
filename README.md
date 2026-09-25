@@ -5,7 +5,7 @@
 
 A Flutter package that provides a unified interface for Firebase Cloud Messaging and AwesomeNotifications with background handling, action buttons, scheduling, grouping, and badge management.
 
-> **Status:** `1.0.0-beta.1` — published for real-world feedback. The API is close
+> **Status:** `1.0.0-beta.2` — published for real-world feedback. The API is close
 > to stable but may still change before `1.0.0`. Supports **Android & iOS** only.
 
 ## 🚀 Features
@@ -29,7 +29,7 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  flutter_notification_wrapper: ^1.0.0
+  flutter_notification_wrapper: ^1.0.0-beta.2
 ```
 
 Then run:
